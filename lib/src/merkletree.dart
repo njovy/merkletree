@@ -8,9 +8,12 @@ typedef HashAlgo = Uint8List Function(Uint8List input);
 /// Class representing a Merkle Tree
 class MerkleTree {
   final HashAlgo hashAlgo;
-  final List<Uint8List> leaves;
-  List<List<Uint8List>> _layers;
+  final List<Uint8List> _leaves;
+  List<Uint8List> get leaves => _leaves;
+  late List<List<Uint8List>> _layers;
   final bool isBitcoinTree;
+  final bool sortPairs;
+  final bool sortLeaves;
 
   /// Constructs a Merkle Tree.
   /// All nodes and leaves are stored as [Uint8List].
@@ -37,11 +40,24 @@ class MerkleTree {
   /// var tree = MerkleTree(leaves: leaves, hashAlgo: sha256);
   /// ```
   MerkleTree(
-      {@required this.leaves,
-      @required this.hashAlgo,
-      this.isBitcoinTree = false}) {
-    _layers = [leaves];
-    _createHashes(leaves);
+      {required List<Uint8List> leaves,
+      required this.hashAlgo,
+      this.sortPairs = false,
+      this.sortLeaves = false,
+      this.isBitcoinTree = false})
+      : _leaves = (() {
+          if (sortLeaves) {
+            return [...leaves]..sort((l,r) => MerkleTreeUtils.bufferCompare(l, r));
+          }
+          return leaves;
+        }()) {
+    _layers = [_leaves];
+    _createHashes(_leaves);
+  }
+
+  List<Uint8List> _combine(Uint8List left, Uint8List right) {
+    var combined = [left, right];
+    return sortPairs ? (combined..sort((l, r) => MerkleTreeUtils.bufferCompare(l, r))) : combined;
   }
 
   void _createHashes(List<Uint8List> nodes) {
@@ -54,14 +70,13 @@ class MerkleTree {
         var left = nodes[i];
         var right = nodes[i + 1];
         Uint8List data;
-
         if (isBitcoinTree) {
           data = MerkleTreeUtils.bufferConcat([
             MerkleTreeUtils.bufferReverse(left),
             MerkleTreeUtils.bufferReverse(right)
           ]);
         } else {
-          data = MerkleTreeUtils.bufferConcat([left, right]);
+          data = MerkleTreeUtils.bufferConcat(_combine(left, right));
         }
 
         var hash = hashAlgo(data);
@@ -89,7 +104,6 @@ class MerkleTree {
           hash = hashAlgo(data);
           hash = MerkleTreeUtils.bufferReverse(hashAlgo(hash));
         }
-
         _layers[layerIndex].add(hash);
       }
 
@@ -112,7 +126,7 @@ class MerkleTree {
       return Uint8List(0);
     }
 
-    return _layers[_layers.length - 1][0] ?? Uint8List(0);
+    return _layers[_layers.length - 1][0];
   }
 
   /// Returns the proof for a target leaf.
@@ -128,12 +142,12 @@ class MerkleTree {
   /// var tree = MerkleTree(leaves: leaves, hashAlgo: sha3);
   /// var proof = tree.getProof(leaf: leaves[2], index: 2);
   /// ```
-  List<MerkleProof> getProof({@required Uint8List leaf, int index = -1}) {
+  List<MerkleProof> getProof({required Uint8List leaf, int index = -1}) {
     var proof = <MerkleProof>[];
 
     if (index == -1) {
-      for (var i = 0; i < leaves.length; i++) {
-        if (MerkleTreeUtils.bufferCompare(leaf, leaves[i]) == 0) {
+      for (var i = 0; i < _leaves.length; i++) {
+        if (MerkleTreeUtils.bufferCompare(leaf, _leaves[i]) == 0) {
           index = i;
         }
       }
@@ -143,7 +157,7 @@ class MerkleTree {
       return [];
     }
 
-    if (isBitcoinTree && index == (leaves.length - 1)) {
+    if (isBitcoinTree && index == (_leaves.length - 1)) {
       // Proof Generation for Bitcoin Trees
 
       for (var i = 0; i < _layers.length - 1; i++) {
@@ -199,9 +213,9 @@ class MerkleTree {
   /// var verified = tree.verify(proof: proof, targetNode: leaves[2], root: root);
   /// ```
   bool verify(
-      {@required List<MerkleProof> proof,
-      @required Uint8List targetNode,
-      @required Uint8List root}) {
+      {required List<MerkleProof> proof,
+      required Uint8List targetNode,
+      required Uint8List root}) {
     var hash = targetNode;
 
     if (proof.isEmpty || targetNode.isEmpty || root.isEmpty) {
@@ -225,15 +239,24 @@ class MerkleTree {
         hash = hashAlgo(MerkleTreeUtils.bufferConcat(buffers));
         hash = MerkleTreeUtils.bufferReverse(hashAlgo(hash));
       } else {
-        buffers.add(hash);
-
-        if (isLeftNode) {
-          buffers.insert(0, node.data);
+        if (sortPairs) {
+          if (MerkleTreeUtils.bufferCompare(hash, node.data)==-1) {
+            buffers.add(hash);
+            buffers.add(node.data);
+          } else {
+            buffers.add(node.data);
+            buffers.add(hash);
+          }
+          hash = hashAlgo(MerkleTreeUtils.bufferConcat(buffers));
         } else {
-          buffers.add(node.data);
+          buffers.add(hash);
+          if (isLeftNode) {
+            buffers.insert(0, node.data);
+          } else {
+            buffers.add(node.data);
+          }
+          hash = hashAlgo(MerkleTreeUtils.bufferConcat(buffers));
         }
-
-        hash = hashAlgo(MerkleTreeUtils.bufferConcat(buffers));
       }
     }
 
@@ -242,9 +265,15 @@ class MerkleTree {
 }
 
 class MerkleProof {
-  MerkleProofPosition position;
-  Uint8List data;
-  MerkleProof({@required this.position, @required this.data});
+  final MerkleProofPosition position;
+  final Uint8List data;
+
+  MerkleProof({required this.position, required this.data});
+
+  @override
+  String toString() {
+    return 'MerkleProof{position: $position, data: ${data.map((e) => e.toRadixString(16)).join('')}}';
+  }
 }
 
 enum MerkleProofPosition { left, right }

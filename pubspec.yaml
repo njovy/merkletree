@@ -1,11 +1,13 @@
 name: merkletree
 description: A Dart implementation of the merkle tree able to construct and verify merkle trees.
-version: 1.0.3
-homepage: https://github.com/ethereumdart/merkletree
-author: Peter Chung <touhonoob@gmail.com>
+version: 1.0.4
+homepage: https://github.com/njovy/merkletree
+authors:
+  - Peter Chung <touhonoob@gmail.com>
+  - Taehyun Park <root@njovy.com>
 
 environment:
-  sdk: '>=2.0.0 <3.0.0'
+  sdk: '>=2.15.1 <3.0.0'
 
 dependencies:
   meta: ^1.1.6
@@ -14,5 +16,6 @@ dependencies:
 dev_dependencies:
   pedantic: ^1.8.0
   test: ^1.6.2
-  pointycastle: ^1.0.1
-  convert: ^2.1.1
+  pointycastle: ^3.6.0
+  convert: ^3.0.2
+  web3dart:

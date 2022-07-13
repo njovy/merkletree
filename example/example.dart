@@ -10,13 +10,16 @@ void main() {
   }
 
   Uint8List sha3(Uint8List data) {
-    var sha3 = Digest('SHA-3/256');
+    var sha3 = Digest('SHA3-256');
     return sha3.process(data);
   }
+
 
   var leaves = ['a', 'b', 'c']
       .map((x) => Uint8List.fromList(x.codeUnits))
       .map((x) => sha3(x))
       .toList();
-  var tree = MerkleTree(leaves: leaves, hashAlgo: sha256);
+  var tree = MerkleTree(leaves: leaves, hashAlgo: sha3, sortLeaves: true, sortPairs: true);
+
+
 }

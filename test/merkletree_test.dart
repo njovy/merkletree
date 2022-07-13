@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:convert/convert.dart';
 import 'package:merkletree/merkletree.dart';
 import 'package:merkletree/src/utils.dart';
+import 'package:pointycastle/digests/sha1.dart';
 import 'package:pointycastle/pointycastle.dart';
 import 'package:test/test.dart';
 
@@ -11,13 +12,65 @@ Uint8List sha256(Uint8List data) {
   return sha256.process(data);
 }
 
+Uint8List sha1(Uint8List data) {
+  return SHA1Digest().process(data);
+}
+
 Uint8List sha3(Uint8List data) {
-  var sha3 = Digest('SHA-3/256');
+  var sha3 = Digest('Keccak/256');
   return sha3.process(data);
 }
 
 void main() {
   group('merkeltree', () {
+    test('sha1 with sort pairs option', () {
+      var leaves = [
+        'd89f84d948796605a413e196f40bce1d6294175d',
+        '32f04c7f572bf75a266268c6f4d8c92731dc3b7f',
+        'b80b52d80f5fe940ac2c987044bc439e4218ac94',
+        '1553c75a1d637961827f4904a0955e57915d8310'
+      ].map((x) => Uint8List.fromList(hex.decode(x))).toList();
+
+      var tree = MerkleTree(
+          leaves: leaves, hashAlgo: sha1, sortPairs: true, sortLeaves: true);
+      final leaf = leaves.first;
+      final proof = tree.getProof(leaf: leaf);
+      print(hex.encode(tree.root));
+      expect(true, tree.verify(proof: proof, targetNode: leaf, root: tree.root));
+
+      expect(proof.map((e) => hex.encode(e.data)).toList().join(","), ['b80b52d80f5fe940ac2c987044bc439e4218ac94', '59f544ee5de8d761b124ccd4e1285d3b02a2a539'].join(","));
+
+    });
+    test('keccak256 with sort leaves and sort pairs option', () {
+      var leaves = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
+          .map((x) => Uint8List.fromList(x.codeUnits))
+          .map((x) => sha3(x))
+          .toList();
+
+      var tree = MerkleTree(
+          leaves: leaves, hashAlgo: sha3, sortPairs: true, sortLeaves: true);
+      expect(hex.encode(tree.root),
+          '60219f87561939610b484575e45c6e81156a53b86d7cd16640d930d14f21758e');
+    });
+    test('sha256 with sort pairs option', () {
+      var leaves = ['a', 'b', 'c', 'd', 'e', 'f']
+          .map((x) => Uint8List.fromList(x.codeUnits))
+          .map((x) => sha256(x))
+          .toList();
+      var tree = MerkleTree(leaves: leaves, hashAlgo: sha256, sortPairs: true);
+      expect(hex.encode(tree.root),
+          'a30ba95a1a5dc397fe45ea20105363b08d682b864a28f4940419a29349a28325');
+    });
+    test('keccak256 with sort leaves and sort pairs option', () {
+      var leaves = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
+          .map((x) => Uint8List.fromList(x.codeUnits))
+          .map((x) => sha3(x))
+          .toList();
+      var tree = MerkleTree(
+          leaves: leaves, hashAlgo: sha3, sortPairs: true, sortLeaves: true);
+      expect(hex.encode(tree.root),
+          '60219f87561939610b484575e45c6e81156a53b86d7cd16640d930d14f21758e');
+    });
     test('sha256 - sha3 leaves', () {
       var leaves = ['a', 'b', 'c']
           .map((x) => Uint8List.fromList(x.codeUnits))
@@ -62,8 +115,8 @@ void main() {
       expect(hex.encode(layers[0][0]), layer_1);
       expect(hex.encode(layers[0][1]), c_hash);
 
-      var root = hex.decode(
-          'aff1208e69c9e8be9b584b07ebac4e48a1ee9d15ce3afe20b77a4d29e4175aa3');
+      var root = Uint8List.fromList(hex.decode(
+          'aff1208e69c9e8be9b584b07ebac4e48a1ee9d15ce3afe20b77a4d29e4175aa3'));
       expect(hex.encode(tree.root), hex.encode(root));
 
       var proof_0 = tree.getProof(leaf: leaves[0]);
@@ -236,8 +289,8 @@ void main() {
       var tree =
           MerkleTree(leaves: leaves, hashAlgo: sha256, isBitcoinTree: true);
 
-      var root = hex.decode(
-          '871714dcbae6c8193a2bb9b2a69fe1c0440399f38d94b3a0f1b447275a29978a');
+      var root = Uint8List.fromList(hex.decode(
+          '871714dcbae6c8193a2bb9b2a69fe1c0440399f38d94b3a0f1b447275a29978a'));
       expect(hex.encode(tree.root), hex.encode(root));
 
       var proof_0 = tree.getProof(leaf: leaves[0]);
